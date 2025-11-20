@@ -1,68 +1,164 @@
 pipeline {
     agent any
-
+    
     environment {
-        AWS_ACCOUNT_ID = "701893741052"
-        AWS_REGION = "ap-south-2"
-        ECR_REPO = "my-simple-app"
+        // AWS Configuration
+        AWS_ACCOUNT_ID = '701893741052'  // Replace with your AWS Account ID
+        AWS_REGION = 'ap-south-1'
+        ECR_REPOSITORY = 'my-simple-app'
+        
+        // Docker Configuration
+        DOCKER_IMAGE = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        ECR_URL = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        
+        // Deployment Configuration
+        EC2_HOST = 'ec2-18-60-47-175.ap-south-2.compute.amazonaws.com'  // Replace with your EC2 public DNS
+        EC2_USER = 'ec2-user'
+        
+        // AWS Credentials (configured in Jenkins)
+        AWS_CREDENTIALS = 'aws-credentials-id'
+        
+        // Email Configuration
+        EMAIL_RECIPIENTS = 'shirishshyam15@gmail.com'
     }
-
-    options {
-        timeout(time: 10, unit: 'MINUTES') // prevents forever waiting
-    }
-
+    
     stages {
-
         stage('Checkout') {
             steps {
-                checkout scm
+                script {
+                    echo '==================== Checking out code from GitHub ===================='
+                    checkout scm
+                }
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo '==================== Installing Dependencies ===================='
+                    sh 'npm install'
+                }
             }
         }
 
-        stage('Install Dependencies (Cached)') {
+        stage('Code Quality Analysis') {
             steps {
-                sh """
-                if [ -d node_modules ]; then
-                    echo 'Using cached node_modules...'
-                else
-                    echo 'Installing Node dependencies...'
-                    npm install --no-audit --no-fund
-                fi
-                """
+                script {
+                    echo '==================== Running Code Quality Checks ===================='
+                    sh 'npm run lint || true'
+                }
             }
         }
-
-        stage('Build Docker Image (Fast Cache)') {
+        
+        stage('Build Docker Image') {
             steps {
-                sh """
-                docker build \
-                  --cache-from=${ECR_URL}/${ECR_REPO}:latest \
-                  -t ${ECR_REPO}:${IMAGE_TAG} .
-                """
+                script {
+                    echo '==================== Building Docker Image ===================='
+                    sh """
+                        docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+                        docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${DOCKER_IMAGE}:${IMAGE_TAG}
+                        docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${DOCKER_IMAGE}:latest
+                    """
+                }
             }
         }
-
-        stage('Login to ECR (Fast)') {
+        
+        stage('Push to ECR') {
             steps {
-                sh """
-                aws ecr get-login-password --region ${AWS_REGION} \
-                | docker login --username AWS --password-stdin ${ECR_URL}
-                """
+                script {
+                    echo '==================== Pushing Image to AWS ECR ===================='
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                    credentialsId: "${AWS_CREDENTIALS}"]]) {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} \
+                            | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                            
+                            docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                            docker push ${DOCKER_IMAGE}:latest
+                        """
+                    }
+                }
             }
         }
-
-        stage('Tag & Push Image') {
+        
+        stage('Deploy to EC2') {
             steps {
-                sh """
-                docker tag ${ECR_REPO}:${IMAGE_TAG} ${ECR_URL}/${ECR_REPO}:${IMAGE_TAG}
-                docker tag ${ECR_REPO}:${IMAGE_TAG} ${ECR_URL}/${ECR_REPO}:latest
-
-                docker push ${ECR_URL}/${ECR_REPO}:${IMAGE_TAG}
-                docker push ${ECR_URL}/${ECR_REPO}:latest
-                """
+                script {
+                    echo '==================== Deploying to EC2 Instance ===================='
+                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', 
+                                    credentialsId: "${AWS_CREDENTIALS}"],
+                                   sshUserPrivateKey(credentialsId: 'ec2-ssh-key', 
+                                                    keyFileVariable: 'SSH_KEY')]) {
+                        sh """
+                            ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ${EC2_USER}@${EC2_HOST} << 'EOF'
+                                aws ecr get-login-password --region ${AWS_REGION} \
+                                | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                                
+                                docker stop my-web-app || true
+                                docker rm my-web-app || true
+                                
+                                docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+                                docker run -d --name my-web-app -p 80:3000 ${DOCKER_IMAGE}:${IMAGE_TAG}
+                                
+                                docker image prune -f
+EOF
+                        """
+                    }
+                }
             }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    echo '==================== Performing Health Check ===================='
+                    sh """
+                        sleep 10
+                        curl -f http://${EC2_HOST}/ || exit 1
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '==================== Pipeline Succeeded ===================='
+            emailext (
+                subject: "✅ Jenkins Pipeline Success: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Build Success!</h2>
+                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                    <p><strong>Docker Image:</strong> ${DOCKER_IMAGE}:${IMAGE_TAG}</p>
+                    <p><strong>Deployment URL:</strong> <a href="http://${EC2_HOST}">http://${EC2_HOST}</a></p>
+                    <p>The application has been successfully deployed to AWS.</p>
+                """,
+                to: "${EMAIL_RECIPIENTS}",
+                mimeType: 'text/html'
+            )
+        }
+        
+        failure {
+            echo '==================== Pipeline Failed ===================='
+            emailext (
+                subject: "❌ Jenkins Pipeline Failed: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Build Failed!</h2>
+                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                    <p><strong>Build Number:</strong> ${env.BUILD_NUMBER}</p>
+                    <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+                    <p><strong>Console Output:</strong> <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></p>
+                    <p>Please check the console output for details.</p>
+                """,
+                to: "${EMAIL_RECIPIENTS}",
+                mimeType: 'text/html'
+            )
+        }
+        
+        always {
+            cleanWs()
         }
     }
 }
