@@ -9,7 +9,7 @@ app.get("/", (req, res) => {
     <!DOCTYPE html>
     <html lang="en">
     <head>
-        <title>Raghav's App</title>
+        <title>Raghav.G App</title>
         <meta charset="UTF-8" />
         <style>
             body {
