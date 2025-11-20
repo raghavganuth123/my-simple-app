@@ -75,7 +75,7 @@ app.get("/", (req, res) => {
     <body>
         <div class="card">
             <h1 class="glow">Welcome to Raghav's Cloud App</h1>
-            <h2>🚀 CI/CD Deployment Successful</h2>
+            <h2> CI/CD Deployment Successful</h2>
             <p>
                 Your application is now live on AWS.<br>
                 Delivered through a modern, sleek, production-grade pipeline.
