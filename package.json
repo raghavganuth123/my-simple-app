@@ -1,0 +1,12 @@
+{
+  "name": "raghav-ci-cd-app",
+  "version": "1.0.0",
+  "description": "Simple CI/CD demo app for Raghav Ganesan",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
