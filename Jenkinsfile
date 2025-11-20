@@ -6,8 +6,6 @@ pipeline {
         AWS_REGION = "ap-south-2"
         ECR_REPO = "my-simple-app"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        CLUSTER = "my-ecs-cluster"
-        SERVICE = "my-ecs-service"
     }
 
     stages {
@@ -40,25 +38,19 @@ pipeline {
             }
         }
 
-        stage('Push to ECR') {
+        stage('Tag Image') {
             steps {
                 sh """
                 docker tag ${ECR_REPO}:${IMAGE_TAG} \
                 ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
-
-                docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
                 """
             }
         }
 
-        stage('Deploy to ECS') {
+        stage('Push Image to ECR') {
             steps {
                 sh """
-                aws ecs update-service \
-                --cluster ${CLUSTER} \
-                --service ${SERVICE} \
-                --force-new-deployment \
-                --region ${AWS_REGION}
+                docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}
                 """
             }
         }
