@@ -25,9 +25,10 @@ pipeline {
             steps {
                 sh """
                 if [ -d node_modules ]; then
-                   echo 'Using cached node_modules';
+                    echo 'Using cached node_modules...'
                 else
-                   npm ci --prefer-offline --no-audit --no-fund
+                    echo 'Installing Node dependencies...'
+                    npm install --no-audit --no-fund
                 fi
                 """
             }
