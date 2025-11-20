@@ -19,7 +19,7 @@ pipeline {
         AWS_CREDENTIALS = 'aws-credentials-id'
         
         // Email Configuration
-        EMAIL_RECIPIENTS = 'shirishshyam15@gmail.com'
+        EMAIL_RECIPIENTS = 'raghavganuth123@gmail.com'
     }
     
     stages {
