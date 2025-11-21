@@ -77,10 +77,10 @@ app.get("/", (req, res) => {
             <h1 class="glow">Welcome to Raghav.G</h1>
             <h2> CI/CD Successful</h2>
             <p>
-                Your application is now live on AWS.<br>
-                Delivered through a modern, sleek, production-grade pipeline.
+                Application is now live on AWS.<br>
+                Delivered through a modern, production-grade pipeline.
             </p>
-            <div class="footer">Powered by AWS • Jenkins • Docker • ECR • ECS</div>
+            <div class="footer">Powered by AWS • Jenkins • Docker • ECR </div>
         </div>
     </body>
     </html>
