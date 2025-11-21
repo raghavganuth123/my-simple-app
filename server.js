@@ -74,7 +74,7 @@ app.get("/", (req, res) => {
 
     <body>
         <div class="card">
-            <h1 class="glow">Welcome to Raghav.G</h1>
+            <h1 class="glow">Welcome to Raghav's Web App</h1>
             <h2> CI/CD Successful</h2>
             <p>
                 Application is now live on AWS.<br>
